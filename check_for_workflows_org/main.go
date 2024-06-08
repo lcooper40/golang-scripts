@@ -30,34 +30,47 @@ type WorkflowsResponse struct {
 }
 
 func getOrgRepos(orgName, token string) ([]Repo, error) {
-	url := fmt.Sprintf("%s/orgs/%s/repos", githubAPI, orgName)
-	req, err := http.NewRequest("GET", url, nil)
-	if err != nil {
-		return nil, err
-	}
-	req.Header.Set("Authorization", "token "+token)
-	req.Header.Set("Accept", "application/vnd.github.v3+json")
-
-	client := &http.Client{}
-	resp, err := client.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("failed to get repos: %s", resp.Status)
-	}
-
-	body, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		return nil, err
-	}
-
 	var repos []Repo
-	if err := json.Unmarshal(body, &repos); err != nil {
-		return nil, err
+	page := 1
+
+	for {
+		url := fmt.Sprintf("%s/orgs/%s/repos?page=%d&per_page=100", githubAPI, orgName, page)
+		req, err := http.NewRequest("GET", url, nil)
+		if err != nil {
+			return nil, err
+		}
+		req.Header.Set("Authorization", "token "+token)
+		req.Header.Set("Accept", "application/vnd.github.v3+json")
+
+		client := &http.Client{}
+		resp, err := client.Do(req)
+		if err != nil {
+			return nil, err
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode != http.StatusOK {
+			return nil, fmt.Errorf("failed to get repos: %s", resp.Status)
+		}
+
+		body, err := ioutil.ReadAll(resp.Body)
+		if err != nil {
+			return nil, err
+		}
+
+		var pageRepos []Repo
+		if err := json.Unmarshal(body, &pageRepos); err != nil {
+			return nil, err
+		}
+
+		if len(pageRepos) == 0 {
+			break
+		}
+
+		repos = append(repos, pageRepos...)
+		page++
 	}
+
 	return repos, nil
 }
 
@@ -100,8 +113,8 @@ func main() {
 		return
 	}
 
-	orgName := "your-org-name"
-	omitPattern := regexp.MustCompile(`your-regex-pattern`)
+	orgName := "your-org-name"                              // Replace with your organization name
+	omitPattern := regexp.MustCompile(`your-regex-pattern`) // Replace with your regex pattern
 
 	repos, err := getOrgRepos(orgName, token)
 	if err != nil {
